@@ -8,7 +8,7 @@ class InstrumentCollection:
     def __init__(self):
         self.instruments_dict = {}
 
-    def loadInstruments(self, path):
+    def LoadInstruments(self, path):
         self.instruments_dict = {}
         fileName = f"{path}/{self.FILENAME}"
         with open(fileName, 'r') as f:
