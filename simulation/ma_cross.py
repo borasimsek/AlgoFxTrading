@@ -6,6 +6,51 @@ SELL = -1
 NONE = 0
 get_ma_col = lambda x: f"MA_{x}"
 
+def load_price_data(pair, granularity, ma_list):
+    df = pd.read_pickle(f"./data/{pair}_{granularity}.pkl")
+    for ma in ma_list:
+        df[get_ma_col(ma)] = df["mid_c"].rolling(window=ma).mean()
+    df.dropna(inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    return df
+
+def is_trade(row):
+    if row.DELTA > 0 and row.DELTA_PREV <= 0:
+        return BUY
+    elif row.DELTA < 0 and row.DELTA_PREV >= 0:
+        return SELL
+    else:
+        return NONE
+
+def assess_pair(price_data, ma_long_col, ma_short_col, instrument):
+    df_analysis = price_data.copy()
+    df_analysis["DELTA"] = df_analysis[ma_short_col] - df_analysis[ma_long_col]
+    df_analysis["DELTA_PREV"] = df_analysis["DELTA"].shift(1)
+    df_analysis["TRADE"] = df_analysis.apply(is_trade, axis=1)
+    print(instrument.name,ma_long_col, ma_short_col)
+    print(df_analysis.head(3))
+    return None
+
+def analyse_pair(instrument, granularity, ma_long, ma_short):
+
+    ma_list = set(ma_long + ma_short) # bunu yaparak aynı değerlerin tekrar tekrar hesaplanmasını engelliyoruz. Örneğin 20 ve 20 alması mantıklı olmazdı.
+    pair = instrument.name
+
+    price_data = load_price_data(pair, granularity, ma_list)
+    print(pair)
+    print(price_data.head(3))
+    for ma_l in ma_long:
+        for ma_s in ma_short:
+            if ma_l <= ma_s:
+                continue
+
+            result = assess_pair(
+                price_data,
+                get_ma_col(ma_l),
+                get_ma_col(ma_s),
+                instrument
+            )
+
 def run_ma_sim(curr_list=["EUR","USD"],
                 granularity=["H1"],
                 ma_long =[20,40,80],
@@ -16,4 +61,4 @@ def run_ma_sim(curr_list=["EUR","USD"],
             for p2 in curr_list:
                 pair = f"{p1}_{p2}"
                 if pair in ic.instruments_dict.keys():
-                    print(pair)
+                    analyse_pair(ic.instruments_dict[pair], g, ma_long, ma_short)
