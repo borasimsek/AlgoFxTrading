@@ -6,6 +6,30 @@ SELL = -1
 NONE = 0
 get_ma_col = lambda x: f"MA_{x}"
 
+class MAResult:
+    def __init__(self,df_trades,pair_name,ma_l,ma_s):
+        self.df_trades = df_trades
+        self.pair_name = pair_name
+        self.ma_l = ma_l
+        self.ma_s = ma_s
+        self.result = self.result_ob()
+
+    def __repr__(self):
+        return str(self.result)
+
+    def result_ob(self):
+        return dict(
+            pair_name=self.pair_name,
+            num_trades=self.df_trades.shape[0],
+            total_gain=int(self.df_trades["GAIN"].sum()),
+            mean_gain= int(self.df_trades["GAIN"].mean()),
+            min_gain= int(self.df_trades["GAIN"].min()),
+            max_gain= int(self.df_trades["GAIN"].max()),
+            ma_l=self.ma_l,
+            ma_s=self.ma_s)
+
+
+
 def load_price_data(pair, granularity, ma_list):
     df = pd.read_pickle(f"./data/{pair}_{granularity}.pkl")
     for ma in ma_list:
@@ -27,9 +51,18 @@ def assess_pair(price_data, ma_long_col, ma_short_col, instrument):
     df_analysis["DELTA"] = df_analysis[ma_short_col] - df_analysis[ma_long_col]
     df_analysis["DELTA_PREV"] = df_analysis["DELTA"].shift(1)
     df_analysis["TRADE"] = df_analysis.apply(is_trade, axis=1)
-    print(instrument.name,ma_long_col, ma_short_col)
-    print(df_analysis.head(3))
-    return None
+    #print(instrument.name,ma_long_col, ma_short_col)
+    #print(df_analysis.head(3))
+    return get_trades(df_analysis, instrument)
+
+def get_trades(df_analysis, instrument):
+    df_trades = df_analysis[df_analysis["TRADE"] != NONE].copy()
+    df_trades["DIFF"] = df_trades["mid_c"].diff().shift(-1)
+    df_trades.fillna(0, inplace=True)
+    df_trades["GAIN"] = df_trades.DIFF / instrument.pipLocation
+    df_trades["GAIN"] = df_trades["GAIN"] * df_trades["TRADE"]
+    total_gain = df_trades["GAIN"].sum()
+    return dict(total_gain =int(total_gain), df_trades = df_trades)
 
 def analyse_pair(instrument, granularity, ma_long, ma_short):
 
@@ -50,6 +83,11 @@ def analyse_pair(instrument, granularity, ma_long, ma_short):
                 get_ma_col(ma_s),
                 instrument
             )
+
+            tg = result["total_gain"]
+            nt = result["df_trades"].shape[0]
+
+            print(f"{pair} {granularity} {ma_l}-{ma_s} Total Gain: {tg} Trades: {nt}")
 
 def run_ma_sim(curr_list=["EUR","USD"],
                 granularity=["H1"],
